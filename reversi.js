@@ -1,149 +1,93 @@
 
-// init when jQuery is loaded
-$(function(){
-   init(); 
-});
-
-
-//
-// global variables
-//
-
-var player = {none: 0, white: 1, black: 2};
-
-// standard board size
-var width = 8;
-var height = 8;
-
-var gameBoard = [];
-var currPlayer = player.none;
-var computerPlayers = [];
-var playerNames = [];
-var directions = getMoveDirections();
-
-//
-//  settings
-//
-
-var computerMoveWait = 500;
-var fadeInNewMoves = true;
-
-var fadeInMessages = true;
-var displayMessages = true;
-
-var blackIsHuman = true;
-var whiteIsHuman = false;
-
-var displayEveryBoardChange = true;
-var displayBoardPossibility = true;
-
-//
-//  functions
-//
-
-
-// initialize game
-function init()
+function Reversi(options)
 {
-    // draw divs
-    initGameHTML();
+    // options
+    this.computerMoveWait = options['computerMoveWait'] || 500;
+    var blackIsHuman = options['blackIsHuman'] === true;
+    var whiteIsHuman = options['whiteIsHuman'] !== false;
+
+    // player type
+    this.playerType = {none: 0, white: 1, black: 2};
+
+    // standard board size
+    this.width = 8;
+    this.height = 8;
     
-    reset();
+    this.board = [];
+    this.currPlayer = this.playerType.none;
+    this.computerPlayers = [];
+    this.playerNames = [];
     
-    // draw
-    drawBoard(gameBoard);
-    
-    // player names
-    playerNames[player.white] = 'Computer';
-    playerNames[player.black] = 'Human';
+    //
+    this.directions = this.getMoveDirections();
     
     // computer is white
-    // add player.black to have cpu vs cpu
-    if(!blackIsHuman){
-        computerPlayers.push(player.black);
-    }
-    if(!whiteIsHuman){
-        computerPlayers.push(player.white);
-    }
+    // add playerType.black to have cpu vs cpu
+    this.computerPlayers[this.playerType.black] = !blackIsHuman;
+    this.computerPlayers[this.playerType.white] = !whiteIsHuman;
     
-    // tell who is who
-    message(getPlayerName(player.white)+' is White');
-    message(getPlayerName(player.black)+' is Black');
-    
-    // start game
-    playNextTurn(currPlayer);
+    // must be set outside of the Reversi game
+    this.drawBoard = function(board){};
+    this.drawPossibleBoard = function(possibleBoard){};
+    this.message = function(text){};
 }
 
-function reset()
+Reversi.prototype.reset = function()
 {
     // create empty board
-    gameBoard = getEmptyBoard();
+    this.board = this.getEmptyBoard();
     
     // place starting pieces
-    placeInitPieces(gameBoard);
+    this.placeInitPieces(this.board);
     
     // black starts
-    currPlayer = player.black;
+    this.currPlayer = this.playerType.black;
 }
 
-// on click cell handler
-function onCellClick()
+Reversi.prototype.start = function()
 {
-    // verify it is a user's turn
-    if(isComputerPlayer(currPlayer)){
-        // not user's turn
-        message('It is not your turn');
-        return;
-    }
+    // draw initial board
+    this.drawBoard(this.board);
     
-    var cell = $(this);
-    var col = parseInt(cell.attr('col'));
-    var row = parseInt(cell.attr('row'));
-    
-    if(!isValidMove(gameBoard, currPlayer, col, row)){
-        // invalid move
-        message('Invalid move');
-        return;
-    }
-    // valid move
-    
-    doMove(gameBoard, currPlayer, col, row)
+    // play first turn
+    this.playNextTurn();
 }
 
-function doMove(gameBoard, currPlayer, col, row)
+// play current players move onto col,row
+Reversi.prototype.playMove = function(col, row)
 {
     // place move
-    placePlayerMove(gameBoard, currPlayer, col, row);
-    
-    // next turn
-    currPlayer = nextPlayer(currPlayer);
+    this.placePlayerMove(col, row);
     
     // update board
-    drawBoard(gameBoard);
+    this.drawBoard(this.board);
+    
+    // set next player
+    this.currPlayer = this.nextPlayer(this.currPlayer);
     
     // initiate next players turn
-    playNextTurn(currPlayer);
+    this.playNextTurn();
 }
 
-var time = 0;
-
 // initiate next players turn
-function playNextTurn(currPlayer)
+Reversi.prototype.playNextTurn = function()
 {
-    var successors = getSuccessors(gameBoard, currPlayer);
+    // get successors
+    var successors = this.getSuccessors(this.board, this.currPlayer);
+    
     // if current player can't make a move
     if(successors.length == 0){
         // if other player can't make a move
-        var otherPlayer = nextPlayer(currPlayer);
-        var otherSuccessors = getSuccessors(gameBoard, otherPlayer);
+        var otherPlayer = this.nextPlayer(this.currPlayer);
+        var otherSuccessors = this.getSuccessors(this.board, otherPlayer);
         if(otherSuccessors.length == 0){
             // neither player has a possible move
-            message('Neither player can make a move. Game over.');
+            this.message('Neither player can make a move. Game over.');
             
             if(!displayEveryBoardChange){
                 // draw final board
                 displayEveryBoardChange = true;
-                drawBoard(gameBoard);
+                this.drawBoard(this.gameBoard);
                 displayEveryBoardChange = false;
             }
             
@@ -151,60 +95,63 @@ function playNextTurn(currPlayer)
             
         } else {
             // current player has no move
-            message(getPlayerName(currPlayer)+' has no possible moves.');
+            this.message(this.getPlayerName(this.currPlayer)+' has no possible moves.');
             
             // switch players
-            currPlayer = nextPlayer(currPlayer);
-            playNextTurn(currPlayer);
+            this.currPlayer = this.nextPlayer(this.currPlayer);
+            this.playNextTurn(this.currPlayer);
             
             return;
         }
     }
     
     // update scores
-    scores = getScores(gameBoard);
-    message('Score: Black='+scores[player.black]+' White='+scores[player.white]);
+    var scores = this.getScores(this.board);
+    message('Score: Black='+scores[this.playerType.black]+' White='+scores[this.playerType.white]);
     
-    message('It is '+getPlayerName(currPlayer)+'\'s turn');
+    message('It is '+this.getPlayerName(this.currPlayer)+'\'s turn');
 
-    if(isComputerPlayer(currPlayer)){
+    if(this.isComputerPlayer(this.currPlayer)){
         // computer
         
         // dispay possible moves
-        drawPossibleBoard(getSuccessorBoard(gameBoard, currPlayer));
+        this.drawPossibleBoard(this.getSuccessorBoard(this.board, this.currPlayer));
         
         // wait
-        setTimeout(function () {
+        var _this = this;
+        setTimeout(function(){
             // choose random successor
-            var successors = getSuccessors(gameBoard, currPlayer);
+            var successors = _this.getSuccessors(_this.board, _this.currPlayer);
             var position = successors[Math.floor(Math.random()*successors.length)];
             
-            doMove(gameBoard, currPlayer, position[0], position[1]);
+            var col = position[0];
+            var row = position[1];
+            _this.playMove(col, row);
         
-        }, computerMoveWait);
+        }, this.computerMoveWait);
         
     } else {
         // human
         
         // dispay possible moves
-        drawPossibleBoard(getSuccessorBoard(gameBoard, currPlayer));
+        this.drawPossibleBoard(this.getSuccessorBoard(this.board, this.currPlayer));
     }
 }
 
-function getScores(board)
+Reversi.prototype.getScores = function(board)
 {
     var scores = [];
     
-    scores[player.black] = 0;
-    scores[player.white] = 0;
+    scores[this.playerType.black] = 0;
+    scores[this.playerType.white] = 0;
     
-    for(c = 0; c < width; c++){
-        for(r = 0; r < height; r++){
-            if(board[c][r] == player.black){
-                scores[player.black]++;
+    for(c = 0; c < this.width; c++){
+        for(r = 0; r < this.height; r++){
+            if(this.board[c][r] == this.playerType.black){
+                scores[this.playerType.black]++;
                 
-            } else if(board[c][r] == player.white){
-                scores[player.white]++;
+            } else if(this.board[c][r] == this.playerType.white){
+                scores[this.playerType.white]++;
             }
         }
     }
@@ -213,31 +160,24 @@ function getScores(board)
 }
 
 // returns true if the player is a computer
-function isComputerPlayer(currPlayer)
+Reversi.prototype.isComputerPlayer = function(player)
 {
-    for(i in computerPlayers){
-        if(computerPlayers[i] == currPlayer){
-            return true;
-        }
-    }
-    
-    return false;
+    return (this.computerPlayers[player] === true);
 }
 
 // places player piece on board and updates other cells
 // assumes this position is valid
-function placePlayerMove(board, currPlayer, col, row)
-{
-    
+Reversi.prototype.placePlayerMove = function(col, row)
+{ 
     //
     // helper function
     //
     
     // searches from a move back to one of the players pieces
-    function getPossiblePathInDirection(board, currPlayer, direction, fromCol, fromRow)
+    function getPossiblePathInDirection(direction, fromCol, fromRow)
     {
         var path = [];
-        var otherPlayer = nextPlayer(currPlayer);
+        var otherPlayer = this.nextPlayer(this.currPlayer);
 
         // search until we find our own piece
         for(i in direction){
@@ -248,16 +188,16 @@ function placePlayerMove(board, currPlayer, col, row)
             // add current position to the path
             path.push([checkCol, checkRow]);
             
-            if(!isValidBoardPosition(checkCol, checkRow)){
+            if(!this.isValidBoardPosition(checkCol, checkRow)){
                 return false;
             }
             // can't pass over none piece
-            if(board[checkCol][checkRow] == player.none){
+            if(this.board[checkCol][checkRow] == this.playerType.none){
                 return false;
             }
             
             // stop at current player's piece
-            if(board[checkCol][checkRow] == currPlayer){
+            if(this.board[checkCol][checkRow] == this.currPlayer){
                 // a valid move will never be adjacent
                 if(i == 0){
                     return false;
@@ -275,21 +215,21 @@ function placePlayerMove(board, currPlayer, col, row)
     //
     
     // place piece in selected position
-    board[col][row] = currPlayer;
+    this.board[col][row] = this.currPlayer;
     
     // find all paths this move is valid for
     var validMove = false;
-    for(d in directions){
-        var direction = directions[d];
+    for(d in this.directions){
+        var direction = this.directions[d];
         
         // check if the direction is possible
-        path = getPossiblePathInDirection(board, currPlayer, direction, col, row);
+        path = getPossiblePathInDirection.call(this, direction, col, row);
         if(path !== false){
             validMove = true;
             // change pieces for entire path
             for(i in path){
                 pos = path[i];
-                board[pos[0]][pos[1]] = currPlayer;
+                this.board[pos[0]][pos[1]] = this.currPlayer;
             } 
         }
     }
@@ -300,9 +240,9 @@ function placePlayerMove(board, currPlayer, col, row)
 }
 
 // verifies that the player can make that move
-function isValidMove(board, currPlayer, col, row)
+Reversi.prototype.isValidMove = function(board, player, col, row)
 {
-    var successorBoard = getSuccessorBoard(board, currPlayer);
+    var successorBoard = this.getSuccessorBoard(board, player);
     
     if(successorBoard[col][row] == true){
         return true;
@@ -312,23 +252,23 @@ function isValidMove(board, currPlayer, col, row)
 }
 
 // get all successor moves in a binary board format
-function getSuccessorBoard(board, currPlayer)
+Reversi.prototype.getSuccessorBoard = function(board, player)
 {
     // get successors in a the binary format
-    return getSuccessors(board, currPlayer, true);
+    return this.getSuccessors(board, player, true);
 }
 
 // get all successors, set last param to true for binary board format
-function getSuccessors(board, currPlayer, boardFormat = false)
+Reversi.prototype.getSuccessors = function(board, currPlayer, boardFormat)
 {
     //
     // helper function
     //
     
     // searches from a players piece to a possible successor
-    function getPossibleMoveInDirection(board, currPlayer, direction, fromCol, fromRow)
+    function getPossibleMoveInDirection(direction, fromCol, fromRow)
     {
-        var otherPlayer = nextPlayer(currPlayer);
+        var otherPlayer = this.nextPlayer(this.currPlayer);
 
         // search until we find a none position
         for(i in direction){
@@ -336,16 +276,16 @@ function getSuccessors(board, currPlayer, boardFormat = false)
             var checkCol = fromCol + pos[0];
             var checkRow = fromRow + pos[1];
             
-            if(!isValidBoardPosition(checkCol, checkRow)){
+            if(!this.isValidBoardPosition(checkCol, checkRow)){
                 return false;
             }
             // can't pass over current piece
-            if(board[checkCol][checkRow] == currPlayer){
+            if(this.board[checkCol][checkRow] == this.currPlayer){
                 return false;
             }
             
             // if an none place is found
-            if(board[checkCol][checkRow] == player.none){
+            if(this.board[checkCol][checkRow] == this.playerType.none){
                 // can't be immediate location
                 if(i == 0){
                     return false;
@@ -365,28 +305,28 @@ function getSuccessors(board, currPlayer, boardFormat = false)
     //
     
     // create empty board, which will become the successor board
-    var successorBoard = getEmptyBoard();
+    var successorBoard = this.getEmptyBoard();
     var successors = [];
     
     // search for successors
-    for(c = 0; c < width; c++){
-        for(r = 0; r < height; r++){
+    for(c = 0; c < this.width; c++){
+        for(r = 0; r < this.height; r++){
             // make sure position is boolean false, if not already boolean true
             if(successorBoard[c][r] !== true){
                 successorBoard[c][r] = false;
             }
             
             // only start search from current player
-            if(board[c][r] != currPlayer){
+            if(this.board[c][r] != this.currPlayer){
                 continue;
             }
             
             // find all possible moves from this starting position, in each direction
-            for(d in directions){
-                var direction = directions[d];
+            for(d in this.directions){
+                var direction = this.directions[d];
                 
                 // check if the direction is possible
-                pos = getPossibleMoveInDirection(board, currPlayer, direction, c, r);
+                pos = getPossibleMoveInDirection.call(this, direction, c, r);
                 if(pos !== false){
                     successorBoard[pos[0]][pos[1]] = true;
                     successors.push(pos);
@@ -395,14 +335,16 @@ function getSuccessors(board, currPlayer, boardFormat = false)
         }
     }
     
-    if(boardFormat){
+    if(boardFormat === true){
         return successorBoard;
     }
     
     return successors;
 }
 
-function getMoveDirections()
+// return all the direction path differences
+// adding these to a position will give all paths in each direction
+Reversi.prototype.getMoveDirections = function()
 {
     var N =  [[ 0, -1], [ 0, -2], [ 0, -3], [ 0, -4], [ 0, -5], [ 0, -6], [ 0, -7]];
     var S =  [[ 0,  1], [ 0,  2], [ 0,  3], [ 0,  4], [ 0,  5], [ 0,  6], [ 0,  7]];
@@ -419,9 +361,9 @@ function getMoveDirections()
 }
 
 // checks if the position is on the board
-function isValidBoardPosition(col, row)
+Reversi.prototype.isValidBoardPosition = function(col, row)
 {
-    if(col < 0 || row < 0 || col >= width || row >= height){
+    if(col < 0 || row < 0 || col >= this.width || row >= this.height){
         return false;
     }
     
@@ -429,76 +371,24 @@ function isValidBoardPosition(col, row)
 }
 
 // returns player for next turn
-function nextPlayer(currPlayer)
+Reversi.prototype.nextPlayer = function(player)
 {
-    if(currPlayer == player.black){
-        return player.white;
+    if(player == this.playerType.black){
+        return this.playerType.white;
     } else {
-        return player.black;
-    }
-}
-
-// draws the given board object onto the canvas
-function drawBoard(board)
-{
-    if(!displayEveryBoardChange){
-        return;
-    }
-    
-    // hide markers
-    $('.marker').hide(); 
-
-    for(c = 0; c < width; c++){
-        for(r = 0; r < height; r++){
-            var color = 'none'; 
-            
-            if(board[c][r] == player.white){
-                color = 'white'; 
-            } else if(board[c][r] == player.black){
-                color = 'black'; 
-            }
-            
-            // if newly selected, fade in
-            if(fadeInNewMoves){
-                if($('#cell_'+c+'_'+r+' .disc').css('background-color') == 'transparent'){
-                    $('#cell_'+c+'_'+r+' .disc').hide();
-                    $('#cell_'+c+'_'+r+' .disc').fadeIn();
-                }
-            }
-            
-            $('#cell_'+c+'_'+r+' .disc').css('background-color', color);
-        }
-    }
-}
-
-// draw possible moves for a binary board
-function drawPossibleBoard(possibleBoard)
-{
-    if(!displayBoardPossibility){
-        return;
-    }
-    
-    for(c = 0; c < width; c++){
-        for(r = 0; r < height; r++){
-            // show possible moves, and make sure to hide others
-            if(possibleBoard[c][r] == true){
-                $('#cell_'+c+'_'+r+' .marker').show();   
-            } else {
-                $('#cell_'+c+'_'+r+' .marker').hide();   
-            }
-        }
+        return this.playerType.black;
     }
 }
 
 // returns an empty board object
-function getEmptyBoard()
+Reversi.prototype.getEmptyBoard = function()
 {
     // create empty matrix
     var board = [];
-    for(c = 0; c < width; c++){
+    for(c = 0; c < this.width; c++){
         board[c] = [];
-        for(r = 0; r < height; r++){
-            board[c][r] = player.none;   
+        for(r = 0; r < this.height; r++){
+            board[c][r] = this.playerType.none;   
         }
     }
     
@@ -506,104 +396,26 @@ function getEmptyBoard()
 }
 
 // setup initial game pieces
-function placeInitPieces(board)
+Reversi.prototype.placeInitPieces = function(board)
 {
+    var left = Math.floor(this.width / 2) - 1;
+    var top  = Math.floor(this.height / 2) - 1;
+
     // middle 4
-    board[3][3] = player.white;
-    board[4][3] = player.black;
-    board[3][4] = player.black;
-    board[4][4] = player.white;
-}
-
-// clone the given board
-function cloneBoard(board)
-{
-    var newBoard = [];
-    
-    for(c = 0; c < width; c++){
-        newBoard[c] = [];
-        for(r = 0; r < height; r++){
-            newBoard[c][r] = board[c][r]; 
-        }
-    }
-    
-    return newBoard;
-}
-
-// draw the divs and setup the click handler
-function initGameHTML()
-{
-    // insert divs
-    
-    for(r = 0; r < height; r++){
-        for(c = 0; c < width; c++){
-            var id = 'cell_'+c+'_'+r;
-            $('#game').append(' \
-                <div class="cell" id="'+id+'" col="'+c+'" row="'+r+'"> \
-                    <div class="disc"> \
-                        <div class="marker"></div> \
-                    </div> \
-                </div> \
-            ');
-        }
-        $('#game').append('<div style="clear:both"></div>');
-    }
-    
-    $('#game').css('border', 'thin solid black')
-              .css('float', 'left')
-              .css('background-color', 'grey');
-              
-    $('.cell').css('width', '50px')
-              .css('height', '50px')
-              .css('border', 'thin solid black')
-              .css('float', 'left');
-    
-    $('.disc').css('width', '42px')
-              .css('height', '42px')
-              .css('position', 'relative')
-              .css('left', '4px')
-              .css('top', '4px')
-              .css('border-radius', '100%');
-    
-    $('.marker').css('width', '16px')
-                .css('height', '16px')
-                .css('position', 'relative')
-                .css('left', '13px')
-                .css('top', '13px')
-                .css('border-radius', '100%')
-                .css('background-color', 'black')
-                .hide();
-               
-    // setup on click
-    
-    $('.cell').click(onCellClick);
+    this.board[left  ][top  ] = this.playerType.white;
+    this.board[left+1][top  ] = this.playerType.black;
+    this.board[left  ][top+1] = this.playerType.black;
+    this.board[left+1][top+1] = this.playerType.white;
 }
 
 // convert player to player name
-function getPlayerName(currPlayer)
+Reversi.prototype.getPlayerName = function(player)
 {
-    if(currPlayer == player.none){
+    if(player == this.playerType.none){
         return 'None';
     }
     
-    return playerNames[currPlayer];
-}
-
-// prepends message to the message box
-function message(text)
-{
-    if(!displayMessages){
-        return;
-    }
-    
-    var message = $('<div style="border-bottom: thin solid lightgrey; padding: 5px">'+text+'</div>');
-    
-    $('#messages').prepend(message);
-    
-    if(fadeInMessages){
-        message.hide();
-        message.fadeIn();
-    }
+    return this.playerNames[player];
 }
 
 
